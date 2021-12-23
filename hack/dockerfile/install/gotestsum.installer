@@ -5,5 +5,6 @@
 install_gotestsum() (
 	set -e
 	export GO111MODULE=on
+  export GOPROXY=https://goproxy.io
 	GOBIN="${PREFIX}" go get "gotest.tools/gotestsum@${GOTESTSUM_COMMIT}"
 )

@@ -35,5 +35,7 @@ if [ ! -f "${dir}/${bin}.installer" ]; then
 	exit 1
 fi
 
+export GITHUB_CODES="/tmp/github-codes"
+
 . ${dir}/${bin}.installer
 install_${bin} "$@"

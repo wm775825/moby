@@ -5,6 +5,7 @@
 install_golangci_lint() {
 	set -e
 	export GO111MODULE=on
+  export GOPROXY=https://goproxy.io
 	GOBIN="${PREFIX}" go get "github.com/golangci/golangci-lint/cmd/golangci-lint@${GOLANGCI_LINT_COMMIT}"
 	"${PREFIX}"/golangci-lint --version
 }

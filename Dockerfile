@@ -73,11 +73,15 @@ WORKDIR $GOPATH/src/github.com/go-swagger/go-swagger
 # This is https://github.com/kolyshkin/go-swagger/tree/golang-1.13-fix
 # TODO: move to under moby/ or fix upstream go-swagger to work for us.
 ENV GO_SWAGGER_COMMIT c56166c036004ba7a3a321e5951ba472b9ae298c
+RUN mkdir -p /tmp/github-codes
+RUN mkdir -p $GOPATH/src/github.com/go-swagger/go-swagger
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     --mount=type=tmpfs,target=/go/src/ \
+    --mount=type=bind,src=moby-github-codes,target=/tmp/github-codes \
         set -x \
-        && git clone https://github.com/kolyshkin/go-swagger.git . \
+#  && git clone https://github.com/kolyshkin/go-swagger.git . \
+        && cp -a /tmp/github-codes/go-swagger/. . \
         && git checkout -q "$GO_SWAGGER_COMMIT" \
         && go build -o /build/swagger github.com/go-swagger/go-swagger/cmd/swagger
 
@@ -153,15 +157,19 @@ FROM runtime-dev-cross-${CROSS} AS runtime-dev
 
 FROM base AS tomlv
 ARG TOMLV_COMMIT
+RUN mkdir -p /tmp/github-codes
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=bind,src=moby-github-codes,target=/tmp/github-codes \
     --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
         PREFIX=/build /tmp/install/install.sh tomlv
 
 FROM base AS vndr
 ARG VNDR_COMMIT
+RUN mkdir -p /tmp/github-codes
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=bind,src=moby-github-codes,target=/tmp/github-codes \
     --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
         PREFIX=/build /tmp/install/install.sh vndr
 
@@ -172,15 +180,19 @@ RUN --mount=type=cache,sharing=locked,id=moby-containerd-aptlib,target=/var/lib/
         apt-get update && apt-get install -y --no-install-recommends \
             libbtrfs-dev
 ARG CONTAINERD_COMMIT
+RUN mkdir -p /tmp/github-codes
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=bind,src=moby-github-codes,target=/tmp/github-codes \
     --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
         PREFIX=/build /tmp/install/install.sh containerd
 
 FROM dev-base AS proxy
 ARG LIBNETWORK_COMMIT
+RUN mkdir -p /tmp/github-codes
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=bind,src=moby-github-codes,target=/tmp/github-codes \
     --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
         PREFIX=/build /tmp/install/install.sh proxy
 
@@ -200,8 +212,10 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM base AS shfmt
 ARG SHFMT_COMMIT
+RUN mkdir -p /tmp/github-codes
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=bind,src=moby-github-codes,target=/tmp/github-codes \
     --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
         PREFIX=/build /tmp/install/install.sh shfmt
 
@@ -216,14 +230,17 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 FROM runtime-dev AS runc
 ARG RUNC_COMMIT
 ARG RUNC_BUILDTAGS
+RUN mkdir -p /tmp/github-codes
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=bind,src=moby-github-codes,target=/tmp/github-codes \
     --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
         PREFIX=/build /tmp/install/install.sh runc
 
 FROM dev-base AS tini
 ARG DEBIAN_FRONTEND
 ARG TINI_COMMIT
+RUN mkdir -p /tmp/github-codes
 RUN --mount=type=cache,sharing=locked,id=moby-tini-aptlib,target=/var/lib/apt \
     --mount=type=cache,sharing=locked,id=moby-tini-aptcache,target=/var/cache/apt \
         apt-get update && apt-get install -y --no-install-recommends \
@@ -231,13 +248,16 @@ RUN --mount=type=cache,sharing=locked,id=moby-tini-aptlib,target=/var/lib/apt \
             vim-common
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=bind,src=moby-github-codes,target=/tmp/github-codes \
     --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
         PREFIX=/build /tmp/install/install.sh tini
 
 FROM dev-base AS rootlesskit
 ARG ROOTLESSKIT_COMMIT
+RUN mkdir -p /tmp/github-codes
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=bind,src=moby-github-codes,target=/tmp/github-codes \
     --mount=type=bind,src=hack/dockerfile/install,target=/tmp/install \
         PREFIX=/build /tmp/install/install.sh rootlesskit
 COPY ./contrib/dockerd-rootless.sh /build

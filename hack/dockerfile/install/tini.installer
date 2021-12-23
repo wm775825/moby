@@ -4,8 +4,10 @@
 
 install_tini() {
 	echo "Install tini version $TINI_COMMIT"
-	git clone https://github.com/krallin/tini.git "$GOPATH/tini"
-	cd "$GOPATH/tini"
+	# git clone https://github.com/krallin/tini.git "$GOPATH/tini"
+	mkdir -p "$GOPATH/tini"
+  cp -a $GITHUB_CODES/tini/. "$GOPATH/tini"
+  cd "$GOPATH/tini"
 	git checkout -q "$TINI_COMMIT"
 	cmake .
 	make tini-static

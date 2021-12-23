@@ -29,8 +29,10 @@ install_proxy_dynamic() {
 
 _install_proxy() {
 	echo "Install docker-proxy version $LIBNETWORK_COMMIT"
-	git clone https://github.com/docker/libnetwork.git "$GOPATH/src/github.com/docker/libnetwork"
-	cd "$GOPATH/src/github.com/docker/libnetwork"
+	# git clone https://github.com/docker/libnetwork.git "$GOPATH/src/github.com/docker/libnetwork"
+  mkdir -p "$GOPATH/src/github.com/docker/libnetwork"
+  cp -a $GITHUB_CODES/libnetwork/. "$GOPATH/src/github.com/docker/libnetwork"
+  cd "$GOPATH/src/github.com/docker/libnetwork"
 	git checkout -q "$LIBNETWORK_COMMIT"
 	go build ${BUILD_MODE} -ldflags="$PROXY_LDFLAGS" -o ${PREFIX}/docker-proxy github.com/docker/libnetwork/cmd/proxy
 }
