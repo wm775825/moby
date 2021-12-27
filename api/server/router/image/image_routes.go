@@ -20,6 +20,7 @@ import (
 	"github.com/docker/docker/registry"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
+  "github.com/sirupsen/logrus"
 )
 
 // Creates an image from Pull or from Import
@@ -39,6 +40,9 @@ func (s *imageRouter) postImagesCreate(ctx context.Context, w http.ResponseWrite
 		platform *specs.Platform
 	)
 	defer output.Close()
+
+	logrus.WithFields(logrus.Fields{"image": image, "repo": repo, "tag": tag}).
+		Info("imageRouter: postImageCreate")
 
 	w.Header().Set("Content-Type", "application/json")
 
