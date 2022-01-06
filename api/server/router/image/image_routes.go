@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,8 +21,69 @@ import (
 	"github.com/docker/docker/registry"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
-  "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
+
+var (
+	unixSock = "/tmp/server.sock"
+	unixAddr = &net.UnixAddr{
+		Name: unixSock,
+		Net: "unix",
+	}
+	defaultRegistryUrl = "docker.io"
+	defaultUserName = "library"
+)
+
+func getRegistryUrl(imageIdWithTags string) string {
+	dialContext := func(_ context.Context, _, _ string) (net.Conn, error) {
+		return net.DialUnix("unix", nil, unixAddr)
+	}
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: dialContext,
+		},
+	}
+	url := "http://dockerd" + "/" + imageIdWithTags
+	if resp, err := client.Get(url); err != nil {
+		logrus.Error(err)
+	} else {
+		defer resp.Body.Close()
+		if resp.StatusCode == 200 {
+			buf := make([]byte, 32)
+			n, _ := resp.Body.Read(buf)
+			return string(buf[:n])
+		} else {
+			logrus.Errorf("Get registry url: status code is %v", resp.StatusCode)
+		}
+	}
+	return defaultRegistryUrl
+}
+
+func convertImageTag(domain, imageWithoutTag string) string {
+	// the complete format of image tag: domain/user/image:version
+	switch strings.Count(imageWithoutTag, "/") {
+	case 2:
+		// 1. domain/user/image:version
+		i := strings.IndexRune(imageWithoutTag, '/')
+		return domain + "/" + imageWithoutTag[i+1:]
+	case 1:
+		i := strings.IndexRune(imageWithoutTag, '/')
+			if !strings.ContainsAny(imageWithoutTag[:i], ".:") && imageWithoutTag[:i] != "localhost" {
+				// 2. user/image:version
+				return domain + "/" + imageWithoutTag
+		} else {
+			// 3. domain/image:version
+			return domain + "/" + defaultUserName + "/" + imageWithoutTag[i+1:]
+		}
+	case 0:
+		// 4. image:version
+		return domain + "/" + defaultUserName + "/" + imageWithoutTag
+	default:
+		// unreachable
+		// <none>:<none> images have been prefiltered
+		return ""
+	}
+}
 
 // Creates an image from Pull or from Import
 func (s *imageRouter) postImagesCreate(ctx context.Context, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
@@ -79,7 +141,32 @@ func (s *imageRouter) postImagesCreate(ctx context.Context, w http.ResponseWrite
 				authConfig = &types.AuthConfig{}
 			}
 		}
-		err = s.backend.PullImage(ctx, image, tag, platform, metaHeaders, authConfig, output)
+
+		// 1. get new registry url; and retag the image
+		registryUrl := getRegistryUrl(image + ":" + tag)
+		newImage := convertImageTag(registryUrl, image)
+
+		// 2. pull image with the new image and tag
+		err = s.backend.PullImage(ctx, newImage, tag, platform, metaHeaders, authConfig, output)
+
+		// 3. retag the local image to the original image tag
+		srcTotalImage := newImage + ":" + tag
+		logrus.Infof("Pull succeeds, begin to retag image %s to %s:%s", srcTotalImage, image, tag)
+		newRetagReturn, retagError := s.backend.TagImage(srcTotalImage, image, tag)
+		logrus.Infof("The return result of the retag is %s\n", newRetagReturn)
+		if retagError != nil {
+			logrus.Error(retagError)
+		}
+		logrus.Info("Retag images succeeds, begin to remove intermediate image.")
+
+		// 4. delete the new image tag if there are redundant tags.
+		if newRetagReturn != image + ":" + tag {
+			_, removeError := s.backend.ImageDelete(srcTotalImage, false, true)
+			if removeError != nil {
+				logrus.Error(removeError)
+			}
+		}
+		logrus.Info("All succeed.")
 	} else { // import
 		src := r.Form.Get("fromSrc")
 		// 'err' MUST NOT be defined within this block, we need any error
@@ -208,6 +295,9 @@ func (s *imageRouter) deleteImages(ctx context.Context, w http.ResponseWriter, r
 	force := httputils.BoolValue(r, "force")
 	prune := !httputils.BoolValue(r, "noprune")
 
+	logrus.WithFields(logrus.Fields{"name": name, "force": force, "prune": prune}).
+		Info("imageRouter: deleteImages")
+
 	list, err := s.backend.ImageDelete(name, force, prune)
 	if err != nil {
 		return err
@@ -265,6 +355,10 @@ func (s *imageRouter) postImagesTag(ctx context.Context, w http.ResponseWriter, 
 	if err := httputils.ParseForm(r); err != nil {
 		return err
 	}
+
+	logrus.WithFields(logrus.Fields{"imageName": vars["name"], "repo": r.Form.Get("repo"), "tag": r.Form.Get("tag")}).
+		Info("imageRouter: postImagesTag")
+
 	if _, err := s.backend.TagImage(vars["name"], r.Form.Get("repo"), r.Form.Get("tag")); err != nil {
 		return err
 	}
@@ -326,3 +420,4 @@ func (s *imageRouter) postImagesPrune(ctx context.Context, w http.ResponseWriter
 	}
 	return httputils.WriteJSON(w, http.StatusOK, pruneReport)
 }
+
