@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/containerd/containerd/platforms"
+	"github.com/docker/distribution/reference"
 	"github.com/docker/docker/api/server/httputils"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
@@ -160,7 +161,8 @@ func (s *imageRouter) postImagesCreate(ctx context.Context, w http.ResponseWrite
 		logrus.Info("Retag images succeeds, begin to remove intermediate image.")
 
 		// 4. delete the new image tag if there are redundant tags.
-		if newRetagReturn != image + ":" + tag {
+		srcTotalImageRef, _ := reference.ParseNormalizedNamed(srcTotalImage)
+		if newRetagReturn != reference.FamiliarString(srcTotalImageRef) {
 			_, removeError := s.backend.ImageDelete(srcTotalImage, false, true)
 			if removeError != nil {
 				logrus.Error(removeError)
